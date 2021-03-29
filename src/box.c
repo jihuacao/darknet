@@ -843,6 +843,10 @@ void do_nms_sort(detection *dets, int total, int classes, float thresh)
     }
 }
 
+//void do_nms_sort(std::vector<detection>& dets, int classes, float thresh) {
+//
+//}
+
 void do_nms(box *boxes, float **probs, int total, int classes, float thresh)
 {
     int i, j, k;

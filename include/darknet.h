@@ -1025,6 +1025,7 @@ LIB_API load_args get_base_args(network *net);
 
 // box.h
 LIB_API void do_nms_sort(detection *dets, int total, int classes, float thresh);
+//LIB_API void do_nms_sort(std::vector<detection>& dets, int classes, float thresh);
 LIB_API void do_nms_obj(detection *dets, int total, int classes, float thresh);
 LIB_API void diounms_sort(detection *dets, int total, int classes, float thresh, NMS_KIND nms_kind, float beta1);
 

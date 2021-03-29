@@ -71,6 +71,7 @@ class Detector {
     std::shared_ptr<void> detector_gpu_ptr;
     std::deque<std::vector<bbox_t>> prev_bbox_vec_deque;
     std::string _cfg_filename, _weight_filename;
+	network * _net;
 public:
     const int cur_gpu_id;
     float nms = .4;
@@ -86,6 +87,9 @@ public:
     LIB_API int get_net_width() const;
     LIB_API int get_net_height() const;
     LIB_API int get_net_color_depth() const;
+	/**@brief 获取类别数
+	 */
+	LIB_API int get_classes() const;
 
     LIB_API std::vector<bbox_t> tracking_id(std::vector<bbox_t> cur_bbox_vec, bool const change_history = true,
                                                 int const frames_story = 5, int const max_dist = 40);
@@ -106,6 +110,12 @@ public:
     }
 
 #ifdef OPENCV
+	/**@brief 
+	 * @param[inout] dst 传入指针的地址，detect之后的结果指针赋值到该地址指针的值，指向新址
+	 * @param[inout] nboxes 赋值dst中detection的个数
+	 */
+	LIB_API unsigned long long detect(image_t img, detection** dst, int* nboxes, float thresh, bool use_mean);
+	LIB_API unsigned long long detect(cv::Mat mat, detection** dst, int* nboxes, float thresh = 0.2, bool use_mean = false);
     std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2, bool use_mean = false)
     {
         if(mat.data == NULL)

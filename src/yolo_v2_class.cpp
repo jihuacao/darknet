@@ -144,6 +144,7 @@ LIB_API Detector::Detector(std::string cfg_filename, std::string weight_filename
     printf(" Used GPU %d \n", cur_gpu_id);
 #endif
     network &net = detector_gpu.net;
+	_net = &detector_gpu.net;
     net.gpu_index = cur_gpu_id;
     //gpu_index = i;
 
@@ -214,6 +215,9 @@ LIB_API int Detector::get_net_color_depth() const {
     return detector_gpu.net.c;
 }
 
+LIB_API int Detector::get_classes() const {
+	return _net->layers[_net->n - 1].classes;
+}
 
 LIB_API std::vector<bbox_t> Detector::detect(std::string image_filename, float thresh, bool use_mean)
 {
@@ -354,6 +358,102 @@ LIB_API std::vector<bbox_t> Detector::detect(image_t img, float thresh, bool use
     return bbox_vec;
 }
 
+LIB_API unsigned long long Detector::detect(image_t img, detection** dst, int* nboxes, float thresh, bool use_mean)
+{
+    detector_gpu_t &detector_gpu = *static_cast<detector_gpu_t *>(detector_gpu_ptr.get());
+    network &net = detector_gpu.net;
+#ifdef GPU
+    int old_gpu_index;
+    cudaGetDevice(&old_gpu_index);
+    if(cur_gpu_id != old_gpu_index)
+        cudaSetDevice(net.gpu_index);
+
+    net.wait_stream = wait_stream;    // 1 - wait CUDA-stream, 0 - not to wait
+#endif
+    //std::cout << "net.gpu_index = " << net.gpu_index << std::endl;
+
+    image im;
+    im.c = img.c;
+    im.data = img.data;
+    im.h = img.h;
+    im.w = img.w;
+
+    image sized;
+
+    if (net.w == im.w && net.h == im.h) {
+        sized = make_image(im.w, im.h, im.c);
+        memcpy(sized.data, im.data, im.w*im.h*im.c * sizeof(float));
+    }
+    else
+        sized = resize_image(im, net.w, net.h);
+
+    layer l = net.layers[net.n - 1];
+
+    float *X = sized.data;
+
+    float *prediction = network_predict(net, X);
+
+    if (use_mean) {
+        memcpy(detector_gpu.predictions[detector_gpu.demo_index], prediction, l.outputs * sizeof(float));
+        mean_arrays(detector_gpu.predictions, NFRAMES, l.outputs, detector_gpu.avg);
+        l.output = detector_gpu.avg;
+        detector_gpu.demo_index = (detector_gpu.demo_index + 1) % NFRAMES;
+    }
+    //get_region_boxes(l, 1, 1, thresh, detector_gpu.probs, detector_gpu.boxes, 0, 0);
+    //if (nms) do_nms_sort(detector_gpu.boxes, detector_gpu.probs, l.w*l.h*l.n, l.classes, nms);
+
+    int letterbox = 0;
+    float hier_thresh = 0.5;
+    *dst = get_network_boxes(&net, im.w, im.h, thresh, hier_thresh, 0, 1, nboxes, letterbox);
+
+	///*** dev by CJH: 扩展dets, 每次扩展一个network预测的数量 这一段放到 外部预测***/
+	//detection** dst;
+	//int* nboxes;
+	//detection* result;
+	//size_t all_boxes;
+	//if ((all_boxes + *nboxes) > (all_boxes % 100 + 1) * 100) {
+	//	auto t = calloc((all_boxes % 100 + 2) * 100, sizeof(detection));
+	//	if(!t) {
+	//	    calloc_error();
+	//	}
+	//	memcpy(t, result, all_boxes * sizeof(detection));
+	//	free(result);
+	//	result = (detection*)t;
+	//}
+	//memcpy(dst + all_boxes * sizeof(detection), *dst, (*nboxes) * sizeof(detection));
+	//free(*dst);
+	//all_boxes += (*nboxes);
+	//do_nms_sort(result, all_boxes);
+	///*** 扩展dets, 每次扩展一个network预测的数量 ***/
+
+    if (nms) do_nms_sort(*dst, *nboxes, l.classes, nms);
+    //free_detections(dets, *nboxes);
+    if(sized.data)
+        free(sized.data);
+#ifdef GPU
+    if (cur_gpu_id != old_gpu_index)
+        cudaSetDevice(old_gpu_index);
+#endif
+	return 0;
+}
+
+
+LIB_API unsigned long long Detector::detect(cv::Mat mat, detection** dst, int* nboxes, float thresh, bool use_mean) {
+	if (mat.data == NULL)
+		throw std::runtime_error("Image is empty");
+
+	auto image_ptr = mat_to_image_resize(mat);
+	detect_resized(*image_ptr, mat.cols, mat.rows, thresh, use_mean);
+    if (image_ptr->data == NULL)
+        throw std::runtime_error("Image is empty");
+
+    auto flag = detect(*image_ptr, dst, nboxes, thresh, use_mean);
+	
+	//// size rebuild would move to the top level
+    //float wk = (float)mat.cols / image_ptr->w, hk = (float)mat.rows/ image_ptr->h;
+    //for (auto &i : detection_boxes) i.x *= wk, i.w *= wk, i.y *= hk, i.h *= hk;
+	return flag;
+}
 LIB_API std::vector<bbox_t> Detector::tracking_id(std::vector<bbox_t> cur_bbox_vec, bool const change_history,
     int const frames_story, int const max_dist)
 {

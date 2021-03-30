@@ -115,12 +115,12 @@ public:
 	 * @param[inout] nboxes 赋值dst中detection的个数
 	 */
 	LIB_API unsigned long long detect(image_t img, detection** dst, int* nboxes, float thresh, bool use_mean);
-	LIB_API unsigned long long detect(cv::Mat mat, detection** dst, int* nboxes, float thresh = 0.2, bool use_mean = false);
-    std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2, bool use_mean = false, bool resize=false)
+	LIB_API unsigned long long detect(cv::Mat mat, detection** dst, int* nboxes, float thresh = 0.2, bool use_mean = false, bool resize=false);
+    std::vector<bbox_t> detect(cv::Mat mat, float thresh = 0.2, bool use_mean = false)
     {
         if(mat.data == NULL)
             throw std::runtime_error("Image is empty");
-        auto image_ptr = resize ? mat_to_image_resize(mat) : mat_to_image_without_resize(mat);
+		auto image_ptr = mat_to_image_resize(mat);
         return detect_resized(*image_ptr, mat.cols, mat.rows, thresh, use_mean);
     }
 

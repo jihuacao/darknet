@@ -438,11 +438,11 @@ LIB_API unsigned long long Detector::detect(image_t img, detection** dst, int* n
 }
 
 
-LIB_API unsigned long long Detector::detect(cv::Mat mat, detection** dst, int* nboxes, float thresh, bool use_mean) {
+LIB_API unsigned long long Detector::detect(cv::Mat mat, detection** dst, int* nboxes, float thresh, bool use_mean, bool resize) {
 	if (mat.data == NULL)
 		throw std::runtime_error("Image is empty");
 
-	auto image_ptr = mat_to_image_resize(mat);
+	auto image_ptr = resize ? mat_to_image_resize(mat) : mat_to_image_without_resize(mat);
 	detect_resized(*image_ptr, mat.cols, mat.rows, thresh, use_mean);
     if (image_ptr->data == NULL)
         throw std::runtime_error("Image is empty");
